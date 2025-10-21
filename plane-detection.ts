@@ -164,6 +164,9 @@ export class PlaneDetection extends Component {
     @property.int()
     collisionMask = -1;
 
+    @property.bool(true)
+    startRoomCapture = true;
+
     /** Map of all planes and their last updated timestamps */
     planes: Map<XRPlane, DOMHighResTimeStamp> = new Map();
 
@@ -176,16 +179,28 @@ export class PlaneDetection extends Component {
     /** Called when a plane stops tracking */
     onPlaneLost = new Emitter<[XRPlane, Object3D]>();
 
-    update() {
+    private _startTime: number = 0;
+    private _launchedCapture: boolean = false;
+
+    update(dt: number) {
         if (!this.engine.xr?.frame) return;
-        // @ts-ignore
         if (this.engine.xr.frame.detectedPlanes === undefined) {
             console.error('plane-detection: WebXR feature not available.');
             this.active = false;
             return;
         }
 
-        // @ts-ignore
+        if (this.engine.xr.frame.detectedPlanes.size === 0) {
+            if (this._startTime > 5 && !this._launchedCapture && this.startRoomCapture) {
+                if (this.engine.xr.frame.session.initiateRoomCapture) {
+                    this.engine.xr.frame.session.initiateRoomCapture();
+                }
+                this._launchedCapture = true;
+            } else {
+                this._startTime += dt;
+            }
+            return;
+        }
         const detectedPlanes: Set<XRPlane> = this.engine.xr.frame.detectedPlanes;
         for (const [plane, _] of this.planes) {
             if (!detectedPlanes.has(plane)) {
